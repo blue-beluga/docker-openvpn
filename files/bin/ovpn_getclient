@@ -1,0 +1,48 @@
+#!/bin/bash
+
+#
+# Get an OpenVPN client configuration file
+#
+
+source "$OPENVPN/ovpn_env.sh"
+cn=$1
+
+
+if [ ! -f "$EASYRSA_PKI/private/${cn}.key" ]; then
+  echo "$cn not found, giving up!"
+  exit 1
+fi
+
+DEFAULT_GW_IP=$(/sbin/ip route | awk '/default/ { print $3 }')
+
+cat <<EOF
+client
+nobind
+dev tun
+remote-cert-tls server
+
+<key>
+$(cat $EASYRSA_PKI/private/${cn}.key)
+</key>
+<cert>
+$(cat $EASYRSA_PKI/issued/${cn}.crt)
+</cert>
+<ca>
+$(cat $EASYRSA_PKI/ca.crt)
+</ca>
+<dh>
+$(cat $EASYRSA_PKI/dh.pem)
+</dh>
+<tls-auth>
+$(cat $EASYRSA_PKI/ta.key)
+</tls-auth>
+key-direction 1
+
+remote $OVPN_CN $OVPN_PORT $OVPN_PROTO
+route 10.81.0.0 255.255.0.0
+route $DEFAULT_GW_IP 255.255.255.255
+dhcp-option DNS $DEFAULT_GW_IP
+dhcp-option DOMAIN central.local
+EOF
+
+[ -n "$OVPN_MTU" ] && echo "tun-mtu $OVPN_MTU"
